@@ -27,7 +27,49 @@ export default function App() {
   const from = weekStart.format("YYYY-MM-DD");
   const to = weekStart.add(6, "day").format("YYYY-MM-DD");
   const dislikesCsv = useMemo(() => dislikes.join(", "), [dislikes]);
+// state
+const [selectedTags, setSelectedTags] = useState([]);
+const [weekOffset, setWeekOffset] = useState(0);
 
+// NEW:
+const [page, setPage] = useState(0);
+const [pageSize, setPageSize] = useState(12);
+
+// derive tags
+const allTags = useMemo(
+  () => Array.from(new Set(recipes.flatMap(r => (r.tags || r.cuisines || []).map(t => t.trim()).filter(Boolean)))).sort(),
+  [recipes]
+);
+
+// fetch when dislikes/tags/page/pageSize change
+useEffect(() => {
+  let ignore = false;
+  (async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const rs = await fetchRecipes({
+        dislikesCsv,
+        page,
+        pageSize,
+        includeTags: selectedTags
+      });
+      const ps = await fetchPlans({ from, to });
+      if (!ignore) {
+        setRecipes(rs);
+        setPlans(ps);
+      }
+    } catch (e) {
+      if (!ignore) setError(e.message || "Failed to load");
+    } finally {
+      if (!ignore) setLoading(false);
+    }
+  })();
+  return () => { ignore = true; };
+}, [dislikesCsv, selectedTags, page, pageSize, from, to]);
+
+// when filters change, reset to page 0
+useEffect(() => { setPage(0); }, [selectedTags, dislikesCsv]);
   // derive all tags from recipes
   const allTags = useMemo(
     () => Array.from(new Set(recipes.flatMap(r => (r.tags || r.cuisines || []).map(t => t.trim()).filter(Boolean)))).sort(),
@@ -138,6 +180,22 @@ export default function App() {
                 Refresh
               </button>
             </div>
+<div className="flex items-center gap-2">
+  <label className="text-xs text-slate-600">Per page</label>
+  <select
+    value={pageSize}
+    onChange={e => setPage(parseInt(0)) || setPageSize(parseInt(e.target.value, 10))}
+    className="border rounded px-2 py-1 text-sm"
+  >
+    <option value={8}>8</option>
+    <option value={12}>12</option>
+    <option value={16}>16</option>
+    <option value={24}>24</option>
+  </select>
+  <button onClick={() => setPage(p => Math.max(p - 1, 0))} className="px-2 py-1 border rounded text-sm">Prev</button>
+  <span className="text-sm">Page {page + 1}</span>
+  <button onClick={() => setPage(p => p + 1)} className="px-2 py-1 border rounded text-sm">Next</button>
+</div>
             <RecipesGrid loading={loading} error={error} recipes={filteredRecipes} />
           </div>
         </section>
