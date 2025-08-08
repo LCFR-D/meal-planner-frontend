@@ -7,7 +7,9 @@ export function RecipesGrid({ loading, error, recipes, onAssign }) {
   if (!recipes?.length) return <div className="text-sm text-slate-500">No recipes found. Try removing some dislikes or change provider.</div>;
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
-      {recipes.map((r) => <RecipeCard key={r.id} recipe={r} onAssign={onAssign} />)}
+      {recipes.map(r => (
+  <RecipeCard key={r.id} recipe={r} />
+))}
     </div>
   );
 }

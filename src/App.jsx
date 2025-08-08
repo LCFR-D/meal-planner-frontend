@@ -8,83 +8,86 @@ import { RecipesGrid } from "./components/RecipesGrid";
 import { WeekPlanner } from "./components/WeekPlanner";
 import { ShoppingListPanel } from "./components/ShoppingListPanel";
 import { Toast } from "./components/Toast";
-import { TagFilter } from "./components/TagFilter";
-import { WeekPlanner } from "./components/WeekPlanner";
-
 
 export default function App() {
-  const [dislikes, setDislikes] = useState(["seafood","pork","star anise"]);
+  // --- state
+  const [dislikes, setDislikes] = useState(["seafood", "pork", "star anise"]);
   const [recipes, setRecipes] = useState([]);
+  const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [plans, setPlans] = useState([]);
   const [shoppingOpen, setShoppingOpen] = useState(false);
   const [toast, setToast] = useState(null);
-const [selectedTags, setSelectedTags] = useState([]);
 
+  // filters + week nav
   const [selectedTags, setSelectedTags] = useState([]);
   const [weekOffset, setWeekOffset] = useState(0);
 
+  const weekStart = useMemo(() => dayjs().startOf("week").add(weekOffset, "week"), [weekOffset]);
+  const from = weekStart.format("YYYY-MM-DD");
+  const to = weekStart.add(6, "day").format("YYYY-MM-DD");
   const dislikesCsv = useMemo(() => dislikes.join(", "), [dislikes]);
-  const weekStart = useMemo(() => dayjs().startOf('week').add(weekOffset, 'week'), [weekOffset]);
-  const from = weekStart.format('YYYY-MM-DD');
-  const to = weekStart.add(6, 'day').format('YYYY-MM-DD');
 
-// derive tag list from recipes
-const allTags = useMemo(() =>
-  Array.from(new Set(recipes.flatMap(r => (r.tags || r.cuisines || []).map(t => t.trim()).filter(Boolean)))).sort()
-, [recipes]);
+  // derive all tags from recipes
+  const allTags = useMemo(
+    () => Array.from(new Set(recipes.flatMap(r => (r.tags || r.cuisines || []).map(t => t.trim()).filter(Boolean)))).sort(),
+    [recipes]
+  );
 
-// filter recipes by selected tags (ANY)
-const filteredRecipes = useMemo(() => {
-  if (!selectedTags.length) return recipes;
-  const set = new Set(selectedTags);
-  return recipes.filter(r => (r.tags || r.cuisines || []).some(t => set.has(t)));
-}, [recipes, selectedTags]);
+  // filter recipes by selected tags (ANY)
+  const filteredRecipes = useMemo(() => {
+    if (!selectedTags.length) return recipes;
+    const set = new Set(selectedTags);
+    return recipes.filter(r => (r.tags || r.cuisines || []).some(t => set.has(t)));
+  }, [recipes, selectedTags]);
 
-
+  // load recipes + plans when dislikes or week range changes
   useEffect(() => {
     let ignore = false;
-    async function load() {
+    (async () => {
       setLoading(true);
       setError("");
       try {
-        const [rs, ps] = await Promise.all([
-          fetchRecipes(dislikesCsv),
-          fetchPlans({ from, to })
-        ]);
-        if (!ignore) { setRecipes(rs); setPlans(ps); }
+        const [rs, ps] = await Promise.all([fetchRecipes(dislikesCsv), fetchPlans({ from, to })]);
+        if (!ignore) {
+          setRecipes(rs);
+          setPlans(Array.isArray(ps) ? ps : (ps?.items ?? [])); // safety
+        }
       } catch (e) {
         if (!ignore) setError(e.message || "Failed to load");
       } finally {
         if (!ignore) setLoading(false);
       }
-    }
-    load();
-    return () => { ignore = true; };
+    })();
+    return () => {
+      ignore = true;
+    };
   }, [dislikesCsv, from, to]);
 
+  // drop/assign handler (called by WeekPlanner)
   const onAssign = async (dateISO, slot, recipe) => {
     try {
       await savePlan({ dateISO, slot, recipeId: recipe.id });
-      setToast({ title: "Added to calendar", desc: `${recipe.name} on ${dayjs(dateISO).format("ddd D MMM")} (${slot})` });
       setPlans(prev => [...prev, { userId: "public", date: dateISO, slot, recipeId: recipe.id }]);
+      setToast({ title: "Added to calendar", desc: `${recipe.name || recipe.title} on ${dayjs(dateISO).format("ddd D MMM")} (${slot})` });
     } catch (e) {
       setToast({ title: "Could not save", desc: e.message, error: true });
     }
   };
 
+  // build shopping list from current plans
   const shoppingList = useMemo(() => {
-    const idx = Object.fromEntries(recipes.map(r => [String(r.id), r]));
+    const byId = Object.fromEntries(recipes.map(r => [String(r.id), r]));
     const items = {};
     for (const p of plans) {
-      const rec = idx[String(p.recipeId)];
-      if (rec?.ingredients) {
-        for (const ing of rec.ingredients) {
-          const key = ing.item.toLowerCase();
-          items[key] = items[key] || { item: ing.item, qtys: [] };
-          if (ing.qty) items[key].qtys.push(ing.qty);
-        }
+      const rec = byId[String(p.recipeId)];
+      if (!rec?.ingredients) continue;
+      for (const ing of rec.ingredients) {
+        const key = (ing.name || ing.item).toLowerCase();
+        const label = ing.name || ing.item;
+        items[key] = items[key] || { item: label, qtys: [] };
+        const qty = [ing.amount, ing.unit].filter(Boolean).join(" ").trim();
+        if (qty) items[key].qtys.push(qty);
       }
     }
     return Object.values(items).map(x => ({ item: x.item, qty: x.qtys.join(", ") }));
@@ -95,6 +98,7 @@ const filteredRecipes = useMemo(() => {
       <Navbar onOpenShopping={() => setShoppingOpen(true)} />
       <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 pb-6">
         <section className="grid lg:grid-cols-3 gap-6">
+          {/* Left column */}
           <div className="lg:col-span-1">
             <div className="rounded-2xl border border-slate-200 bg-white/80 backdrop-blur p-4 shadow">
               <h2 className="text-lg font-semibold mb-3">Dislikes</h2>
@@ -102,17 +106,17 @@ const filteredRecipes = useMemo(() => {
               <DislikesField value={dislikes} onChange={setDislikes} />
             </div>
 
-<TagFilter
-  allTags={allTags}
-  selected={selectedTags}
-  onToggle={(t) => setSelectedTags(s => s.includes(t) ? s.filter(x => x !== t) : [...s, t])}
-  onClear={() => setSelectedTags([])}
-/>
+            <TagFilter
+              allTags={allTags}
+              selected={selectedTags}
+              onToggle={t => setSelectedTags(s => (s.includes(t) ? s.filter(x => x !== t) : [...s, t]))}
+              onClear={() => setSelectedTags([])}
+            />
 
             <div className="mt-6 rounded-2xl border border-slate-200 bg-white/80 backdrop-blur p-4 shadow">
               <h2 className="text-lg font-semibold mb-3">This Week</h2>
               <WeekPlanner
-                weekStartISO={weekStart.format('YYYY-MM-DD')}
+                weekStartISO={weekStart.format("YYYY-MM-DD")}
                 plans={plans}
                 recipes={filteredRecipes}
                 onAssign={onAssign}
@@ -123,6 +127,7 @@ const filteredRecipes = useMemo(() => {
             </div>
           </div>
 
+          {/* Suggestions */}
           <div className="lg:col-span-2">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">Suggested meals</h2>
@@ -133,11 +138,7 @@ const filteredRecipes = useMemo(() => {
                 Refresh
               </button>
             </div>
-<RecipesGrid
-  loading={loading}
-  error={error}
-  recipes={filteredRecipes}
-/>
+            <RecipesGrid loading={loading} error={error} recipes={filteredRecipes} />
           </div>
         </section>
       </main>
