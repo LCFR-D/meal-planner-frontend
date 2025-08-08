@@ -63,7 +63,7 @@ export default function App() {
   return (
     <div className="min-h-screen">
       <Navbar onOpenShopping={() => setShoppingOpen(true)} />
-      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+	<main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-4 md:pt-6 pb-6">
         <section className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-1">
             <div className="rounded-2xl border border-slate-200 bg-white/80 backdrop-blur p-4 shadow">

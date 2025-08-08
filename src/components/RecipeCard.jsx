@@ -11,11 +11,23 @@ function Placeholder({ name }) {
 
 export function RecipeCard({ recipe, onAssign }) {
   const img = recipe.image || null;
+  const kcal = Number.isFinite(recipe.caloriesPerServing) ? Math.round(recipe.caloriesPerServing) : null;
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm hover:shadow-md transition-shadow">
-      {img ? (
-        <img src={img} alt={recipe.name} className="h-32 w-full object-cover rounded-xl" />
-      ) : (<Placeholder name={recipe.name} />)}
+      <div className="relative">
+        {img ? (
+          <img src={img} alt={recipe.name} className="h-32 w-full object-cover rounded-xl" />
+        ) : (
+          <Placeholder name={recipe.name} />
+        )}
+        <div className="absolute top-2 right-2">
+          <span className="rounded-full bg-white/90 backdrop-blur px-2.5 py-1 text-[11px] border border-slate-200">
+            {kcal ? `${kcal} kcal / serve` : `kcal n/a`}
+          </span>
+        </div>
+      </div>
+
       <div className="mt-3">
         <h3 className="font-semibold">{recipe.name}</h3>
         <p className="text-xs text-slate-500 mt-0.5">Serves {recipe.serves || 4}</p>
