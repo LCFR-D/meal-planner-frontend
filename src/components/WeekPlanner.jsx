@@ -1,22 +1,20 @@
 import React, { useMemo } from 'react';
 import dayjs from 'dayjs';
+import { DndContext, useDroppable } from '@dnd-kit/core';
 
 const SLOTS = ["breakfast", "lunch", "dinner"];
 
-function SlotRow({ dateISO, slot, plan, recipes, onAssign }) {
-  const recipe = recipes.find(r => String(r.id) === String(plan?.recipeId));
+function SlotDrop({ dateISO, slot, plan, recipes, onAssign }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `slot-${dateISO}#${slot}`, data: { dateISO, slot } });
+  const recipe = plan && recipes.find(r => String(r.id) === String(plan.recipeId));
+
   return (
-    <div className="flex items-center justify-between py-1">
-      <span className="text-xs text-slate-500 capitalize w-20">{slot}</span>
+    <div ref={setNodeRef} className={`flex items-center justify-between py-1 px-2 rounded ${isOver ? 'ring-2 ring-sky-500' : ''}`}>
+      <span className="text-xs text-slate-500 capitalize w-24">{slot}</span>
       {recipe ? (
-        <div className="text-sm font-medium flex-1 ml-2">{recipe.name}</div>
+        <div className="text-sm font-medium flex-1 ml-2 truncate">{recipe.name || recipe.title}</div>
       ) : (
-        <button
-          onClick={() => { const first = recipes[0]; if (first) onAssign(dateISO, slot, first); }}
-          className="text-xs text-sky-700 underline ml-2"
-        >
-          + Assign first suggestion
-        </button>
+        <div className="text-xs text-slate-400 ml-2 italic">Drag a recipe here</div>
       )}
     </div>
   );
@@ -27,14 +25,7 @@ function DayCard({ dateISO, plansBySlot, recipes, onAssign }) {
     <div className="rounded-xl border border-slate-200 p-3 bg-white">
       <div className="mb-2 text-xs text-slate-500">{dayjs(dateISO).format('ddd D MMM')}</div>
       {SLOTS.map(slot => (
-        <SlotRow
-          key={slot}
-          dateISO={dateISO}
-          slot={slot}
-          plan={plansBySlot[slot]}
-          recipes={recipes}
-          onAssign={onAssign}
-        />
+        <SlotDrop key={slot} dateISO={dateISO} slot={slot} plan={plansBySlot[slot]} recipes={recipes} onAssign={onAssign} />
       ))}
     </div>
   );
@@ -44,22 +35,23 @@ export function WeekPlanner({ weekStartISO, plans, recipes, onAssign, onPrevWeek
   const start = dayjs(weekStartISO);
   const days = Array.from({length:7}).map((_,i)=> start.add(i, 'day').format('YYYY-MM-DD'));
 
-  // plans come as [{date: 'YYYY-MM-DD', slot: 'breakfast'|'lunch'|'dinner'|... , recipeId: '...'}]
   const byDateSlot = useMemo(() => {
     const map = {};
     for (const p of plans) {
       const d = p.date;
-      const s = (p.slot || 'main').toLowerCase();
+      const s = (p.slot || 'dinner').toLowerCase();
       map[d] = map[d] || {};
       map[d][s] = p;
-      // legacy "main" → show under dinner
-      if (s === 'main') map[d]['dinner'] = p;
     }
     return map;
   }, [plans]);
 
   return (
-    <div>
+    <DndContext onDragEnd={(e) => {
+      const recipe = e.active?.data?.current?.recipe;
+      const drop = e.over?.data?.current;
+      if (recipe && drop) onAssign(drop.dateISO, drop.slot, recipe);
+    }}>
       <div className="flex items-center justify-between mb-3">
         <div className="text-sm font-medium">{start.format('D MMM')} – {start.add(6,'day').format('D MMM YYYY')}</div>
         <div className="flex gap-2">
@@ -79,6 +71,6 @@ export function WeekPlanner({ weekStartISO, plans, recipes, onAssign, onPrevWeek
           />
         ))}
       </div>
-    </div>
+    </DndContext>
   );
 }

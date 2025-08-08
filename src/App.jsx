@@ -8,6 +8,9 @@ import { RecipesGrid } from "./components/RecipesGrid";
 import { WeekPlanner } from "./components/WeekPlanner";
 import { ShoppingListPanel } from "./components/ShoppingListPanel";
 import { Toast } from "./components/Toast";
+import { TagFilter } from "./components/TagFilter";
+import { WeekPlanner } from "./components/WeekPlanner";
+
 
 export default function App() {
   const [dislikes, setDislikes] = useState(["seafood","pork","star anise"]);
@@ -17,6 +20,7 @@ export default function App() {
   const [plans, setPlans] = useState([]);
   const [shoppingOpen, setShoppingOpen] = useState(false);
   const [toast, setToast] = useState(null);
+const [selectedTags, setSelectedTags] = useState([]);
 
   const [selectedTags, setSelectedTags] = useState([]);
   const [weekOffset, setWeekOffset] = useState(0);
@@ -26,17 +30,18 @@ export default function App() {
   const from = weekStart.format('YYYY-MM-DD');
   const to = weekStart.add(6, 'day').format('YYYY-MM-DD');
 
-  // derive tag list from recipes
-  const allTags = useMemo(() =>
-    Array.from(new Set(recipes.flatMap(r => (r.tags || []).map(t => t.trim()).filter(Boolean)))).sort()
-  , [recipes]);
+// derive tag list from recipes
+const allTags = useMemo(() =>
+  Array.from(new Set(recipes.flatMap(r => (r.tags || r.cuisines || []).map(t => t.trim()).filter(Boolean)))).sort()
+, [recipes]);
 
-  // filter recipes (ANY selected tag)
-  const filteredRecipes = useMemo(() => {
-    if (!selectedTags.length) return recipes;
-    const set = new Set(selectedTags);
-    return recipes.filter(r => (r.tags || []).some(t => set.has(t)));
-  }, [recipes, selectedTags]);
+// filter recipes by selected tags (ANY)
+const filteredRecipes = useMemo(() => {
+  if (!selectedTags.length) return recipes;
+  const set = new Set(selectedTags);
+  return recipes.filter(r => (r.tags || r.cuisines || []).some(t => set.has(t)));
+}, [recipes, selectedTags]);
+
 
   useEffect(() => {
     let ignore = false;
@@ -97,12 +102,12 @@ export default function App() {
               <DislikesField value={dislikes} onChange={setDislikes} />
             </div>
 
-            <TagFilter
-              allTags={allTags}
-              selected={selectedTags}
-              onToggle={(t) => setSelectedTags(s => s.includes(t) ? s.filter(x => x !== t) : [...s, t])}
-              onClear={() => setSelectedTags([])}
-            />
+<TagFilter
+  allTags={allTags}
+  selected={selectedTags}
+  onToggle={(t) => setSelectedTags(s => s.includes(t) ? s.filter(x => x !== t) : [...s, t])}
+  onClear={() => setSelectedTags([])}
+/>
 
             <div className="mt-6 rounded-2xl border border-slate-200 bg-white/80 backdrop-blur p-4 shadow">
               <h2 className="text-lg font-semibold mb-3">This Week</h2>
@@ -128,7 +133,11 @@ export default function App() {
                 Refresh
               </button>
             </div>
-            <RecipesGrid loading={loading} error={error} recipes={filteredRecipes} onAssign={(d, r) => onAssign(d, "dinner", r)} />
+<RecipesGrid
+  loading={loading}
+  error={error}
+  recipes={filteredRecipes}
+/>
           </div>
         </section>
       </main>
